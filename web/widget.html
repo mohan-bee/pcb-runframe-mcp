@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PCB Runframe</title>
+    <style>
+      html, body, iframe { width: 100%; height: 100%; margin: 0; border: 0; }
+      body { min-height: 560px; overflow: hidden; background: #f8fafc; }
+    </style>
+  </head>
+  <body>
+    <iframe id="runframe" title="Interactive PCB viewer" src="https://runframe.tscircuit.com/iframe.html"></iframe>
+    <script type="module">
+      const frame = document.querySelector("#runframe")
+      let circuit = window.openai?.toolOutput
+      let ready = false
+
+      const sendCircuit = () => {
+        if (!ready || typeof circuit?.code !== "string") return
+        frame.contentWindow.postMessage({
+          runframe_type: "runframe_props_changed",
+          runframe_props: {
+            fsMap: { "main.tsx": circuit.code },
+            entrypoint: "main.tsx",
+            availableTabs: ["pcb", "schematic", "cad", "code"],
+            defaultTab: "pcb",
+          },
+        }, "https://runframe.tscircuit.com")
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.origin === "https://runframe.tscircuit.com" && event.data?.runframe_type === "runframe_ready_to_receive") {
+          ready = true
+          sendCircuit()
+          return
+        }
+        if (event.source !== window.parent) return
+        const message = event.data
+        if (message?.jsonrpc !== "2.0" || message.method !== "ui/notifications/tool-result") return
+        const next = message.params?.structuredContent
+        if (typeof next?.code === "string") {
+          circuit = next
+          sendCircuit()
+        }
+      }, { passive: true })
+    </script>
+  </body>
+</html>
